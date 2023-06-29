@@ -28,7 +28,7 @@ else
                     libc-ares-dev
                     pandoc
                     pkg-config)
-    apt-get install -y "${BUILD_PACKAGES[@]}" libcurl4
+    apt-get install -y "${BUILD_PACKAGES[@]}" libcurl4 wget
 
     # install pam_oauth2.so
     git clone -b "$PAM_OAUTH2" --recurse-submodules https://github.com/zalando-pg/pam-oauth2.git
@@ -59,6 +59,10 @@ curl -sL "https://github.com/hughcapet/pg_tm_aux/archive/$PG_TM_AUX_COMMIT.tar.g
 curl -sL "https://github.com/zubkov-andrei/pg_profile/archive/$PG_PROFILE.tar.gz" | tar xz
 git clone -b "$SET_USER" https://github.com/pgaudit/set_user.git
 git clone https://github.com/timescale/timescaledb.git
+git clone https://bitbucket.org/eunjeon/mecab-ko.git
+wget https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz
+tar xzf mecab-ko-dic-2.1.1-20180720.tar.gz
+git clone https://github.com/i0seph/textsearch_ko.git
 
 apt-get install -y \
     postgresql-common \
@@ -71,6 +75,21 @@ apt-get install -y \
 
 # forbid creation of a main cluster when package is installed
 sed -ri 's/#(create_main_cluster) .*$/\1 = false/' /etc/postgresql-common/createcluster.conf
+
+# setup mecab first
+(
+    cd mecab-ko
+    ./configure
+    make all && make install
+)
+(
+    cd mecab-ko-dic-2.1.1-20180720
+    ldconfig
+    ldconfig -p | grep /usr/local/lib
+    autoreconf
+    ./configure
+    make all && make install
+)
 
 for version in $DEB_PG_SUPPORTED_VERSIONS; do
     sed -i "s/ main.*$/ main $version/g" /etc/apt/sources.list.d/pgdg.list
@@ -180,6 +199,12 @@ for version in $DEB_PG_SUPPORTED_VERSIONS; do
             "${EXTRA_EXTENSIONS[@]}"; do
         make -C "$n" USE_PGXS=1 clean install-strip
     done
+
+    (
+        cd textsearch_ko
+        make USE_PGXS=1 clean
+        make USE_PGXS=1 install
+    )
 done
 
 apt-get install -y skytools3-ticker pgbouncer
